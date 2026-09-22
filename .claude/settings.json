@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(terraform fmt:*)",
+      "Bash(terraform validate:*)",
+      "Bash(terraform plan:*)",
+      "Bash(tflint:*)",
+      "Bash(tfsec:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Read(*)",
+      "Edit(*)"
+    ],
+    "deny": [
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)",
+      "Bash(aws *)",
+      "Bash(rm -rf:*)",
+      "Read(*.tfstate)",
+      "Read(.env)"
+    ]
+  }
+}
