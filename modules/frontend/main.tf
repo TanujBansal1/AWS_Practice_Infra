@@ -17,6 +17,20 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
   restrict_public_buckets = true
 }
 
+# AWS-managed (SSE-S3) encryption, not a customer-managed KMS key - a CMK
+# bills ~$1/month regardless of usage, not justified for a static demo
+# frontend (same cost tradeoff as modules/ecr and modules/rds).
+#tfsec:ignore:aws-s3-encryption-customer-key
+resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
 # Versioning left off on purpose - the site content is fully reproducible
 # from the repo and re-synced on every deploy, so old versions aren't worth
 # the extra storage cost for a demo project.
@@ -37,10 +51,10 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
   signing_protocol                  = "sigv4"
 }
 
-# AWS-0012 (no WAF attached): a WAF web ACL bills a recurring monthly fee
+# aws-cloudfront-enable-waf: a WAF web ACL bills a recurring monthly fee
 # regardless of traffic - not justified for a learning project's static
 # demo frontend.
-#tfsec:ignore:AWS-0012
+#tfsec:ignore:aws-cloudfront-enable-waf
 resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   default_root_object = "index.html"
@@ -89,8 +103,12 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
-  # No custom domain/ACM cert for this learning project - the default
-  # *.cloudfront.net certificate is free and already HTTPS-only.
+  # aws-cloudfront-use-secure-tls-policy: real finding, not a false positive -
+  # the default *.cloudfront.net certificate only supports the legacy TLSv1
+  # minimum; enforcing TLSv1.2+ requires a custom domain + ACM certificate
+  # (SNI), which this project doesn't have yet. Documented gap, same as the
+  # ALB's plain-HTTP listener, to close alongside a future custom domain.
+  #tfsec:ignore:aws-cloudfront-use-secure-tls-policy
   viewer_certificate {
     cloudfront_default_certificate = true
   }
