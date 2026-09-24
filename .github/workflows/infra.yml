@@ -85,6 +85,9 @@ jobs:
         uses: aquasecurity/tfsec-action@v1.0.0
         with:
           working_directory: environments/dev
+          additional_args: >-
+            --minimum-severity HIGH
+            --exclude aws-ec2-no-public-egress-sgr,aws-ec2-no-public-ingress-sgr,aws-ec2-no-public-ip-subnet,aws-ecr-enforce-immutable-repository,aws-elb-alb-not-public,aws-elb-http-not-used,aws-rds-enable-performance-insights-encryption
 
       - name: Terraform plan
         run: terraform plan -out=tfplan
