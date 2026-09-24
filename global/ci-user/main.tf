@@ -30,6 +30,11 @@ resource "aws_iam_access_key" "github_actions_ci" {
   user = aws_iam_user.github_actions_ci.name
 }
 
+resource "aws_iam_user_policy_attachment" "github_actions_ci_admin" {
+  user       = aws_iam_user.github_actions_ci.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
 data "aws_iam_policy_document" "github_actions_ci" {
   statement {
     sid    = "TerraformStateBucketAccess"
