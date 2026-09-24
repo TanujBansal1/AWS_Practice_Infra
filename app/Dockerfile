@@ -4,7 +4,9 @@ FROM python:3.12-slim AS builder
 WORKDIR /build
 COPY requirements.txt .
 RUN python -m venv /venv \
-    && /venv/bin/pip install --no-cache-dir --upgrade pip \
+    # setuptools ships pinned in the venv's ensurepip bootstrap and isn't
+    # touched by a pip-only upgrade, so bump it explicitly (CVE fix)
+    && /venv/bin/pip install --no-cache-dir --upgrade pip setuptools \
     && /venv/bin/pip install --no-cache-dir -r requirements.txt
 
 # --- final stage: copy only the venv + app code, run as non-root ---
