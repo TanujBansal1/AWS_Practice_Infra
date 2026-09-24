@@ -165,4 +165,4 @@ jobs:
           -backend-config="encrypt=true"
 
       - name: Terraform apply
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve tfplanc
