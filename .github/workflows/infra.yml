@@ -5,12 +5,14 @@ on:
     paths:
       - "environments/dev/**"
       - "modules/**"
+      - "global/**"
       - ".github/workflows/infra.yml"
   push:
     branches:
       - main
     paths:
       - "environments/dev/**"
+      - "global/**"
       - "modules/**"
       - ".github/workflows/infra.yml"
 
