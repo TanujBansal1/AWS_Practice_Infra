@@ -7,7 +7,15 @@ RUN python -m venv /venv \
     # setuptools ships pinned in the venv's ensurepip bootstrap and isn't
     # touched by a pip-only upgrade, so bump it explicitly (CVE fix)
     && /venv/bin/pip install --no-cache-dir --upgrade pip setuptools \
-    && /venv/bin/pip install --no-cache-dir -r requirements.txt
+    && /venv/bin/pip install --no-cache-dir -r requirements.txt \
+    # pip vendors its own frozen copies of msgpack/pkg_resources whose
+    # versions never move with a pip upgrade; drop pip since it isn't
+    # needed at runtime, the app only needs the packages it already installed
+    && /venv/bin/python -m pip uninstall -y pip setuptools \
+    && rm -rf /venv/lib/python3.12/site-packages/pip* \
+              /venv/lib/python3.12/site-packages/setuptools* \
+              /venv/lib/python3.12/site-packages/pkg_resources \
+              /venv/lib/python3.12/site-packages/_distutils_hack
 
 # --- final stage: copy only the venv + app code, run as non-root ---
 FROM python:3.12-slim
