@@ -15,6 +15,12 @@ FROM python:3.12-slim
 RUN useradd --create-home --shell /usr/sbin/nologin appuser
 WORKDIR /app
 
+# The base image ships its own pip (plus a bundled ensurepip wheel with a
+# vendored old msgpack) at the system level; the app only runs via /venv,
+# so drop the unused system pip/ensurepip to remove stale CVEs from the scan
+RUN python -m pip uninstall -y pip \
+    && rm -rf /usr/local/lib/python3.12/ensurepip
+
 COPY --from=builder /venv /venv
 COPY main.py .
 
