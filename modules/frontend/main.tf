@@ -67,6 +67,23 @@ resource "aws_cloudfront_distribution" "frontend" {
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
   }
 
+  # The ALB has no HTTPS listener (no custom domain/ACM cert in this
+  # project), so CloudFront talks to it over plain HTTP - that leg stays
+  # inside AWS's network. The browser only ever speaks HTTPS to CloudFront,
+  # which avoids the mixed-content block a direct http:// ALB fetch from
+  # this https:// site would otherwise hit.
+  origin {
+    domain_name = var.alb_dns_name
+    origin_id   = "alb-api"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
+  }
+
   default_cache_behavior {
     allowed_methods        = ["GET", "HEAD"]
     cached_methods         = ["GET", "HEAD"]
@@ -76,6 +93,46 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     forwarded_values {
       query_string = false
+      cookies {
+        forward = "none"
+      }
+    }
+  }
+
+  # Proxies API calls through CloudFront so they're same-origin with the
+  # static site - no caching (TTLs at 0) since these are live API responses.
+  ordered_cache_behavior {
+    path_pattern           = "/todos*"
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "alb-api"
+    viewer_protocol_policy = "https-only"
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
+
+    forwarded_values {
+      query_string = true
+      headers      = ["*"]
+      cookies {
+        forward = "none"
+      }
+    }
+  }
+
+  ordered_cache_behavior {
+    path_pattern           = "/health"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    target_origin_id       = "alb-api"
+    viewer_protocol_policy = "https-only"
+    min_ttl                = 0
+    default_ttl            = 0
+    max_ttl                = 0
+
+    forwarded_values {
+      query_string = false
+      headers      = ["*"]
       cookies {
         forward = "none"
       }

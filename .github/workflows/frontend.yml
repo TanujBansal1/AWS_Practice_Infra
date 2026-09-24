@@ -55,15 +55,16 @@ jobs:
         id: infra
         working-directory: environments/dev
         run: |
-          echo "api_url=$(terraform output -raw alb_dns_name)" >> "$GITHUB_OUTPUT"
           echo "bucket=$(terraform output -raw frontend_bucket_name)" >> "$GITHUB_OUTPUT"
           echo "distribution_id=$(terraform output -raw frontend_cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
 
+      # Empty string = same-origin relative requests (e.g. fetch('/todos')).
+      # CloudFront proxies those paths to the ALB (see modules/frontend), so
+      # the browser never makes a direct http:// request to the ALB, which
+      # would otherwise be blocked as mixed content on this https:// site.
       - name: Inject API URL into frontend config
         working-directory: frontend
-        run: >-
-          sed -i "s#__API_BASE_URL__#http://${{ steps.infra.outputs.api_url }}#"
-          config.js
+        run: sed -i "s#__API_BASE_URL__##" config.js
 
       - name: Sync to S3
         run: >-

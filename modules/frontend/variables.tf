@@ -14,3 +14,8 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "alb_dns_name" {
+  description = "ALB DNS name, proxied through this CloudFront distribution so the browser (loaded over HTTPS) never has to make a mixed-content HTTP request straight to the ALB."
+  type        = string
+}

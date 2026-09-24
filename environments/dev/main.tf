@@ -35,8 +35,9 @@ module "alb" {
 module "frontend" {
   source = "../../modules/frontend"
 
-  name_prefix = local.name_prefix
-  tags        = local.common_tags
+  name_prefix  = local.name_prefix
+  alb_dns_name = module.alb.alb_dns_name
+  tags         = local.common_tags
 }
 
 module "ecs" {
