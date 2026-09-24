@@ -2,11 +2,21 @@ import os
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
 
 app = FastAPI(title="Todo API")
+
+# Defaults to "*" for local dev (docker-compose has no separate frontend
+# origin to restrict to); the deployed env sets this to the CloudFront URL.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[os.environ.get("ALLOWED_ORIGIN", "*")],
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["*"],
+)
 
 # DB connection is built lazily (only when a /todos route runs a query), not
 # at import/startup time - this keeps /health independent of DB reachability

@@ -32,6 +32,13 @@ module "alb" {
   tags              = local.common_tags
 }
 
+module "frontend" {
+  source = "../../modules/frontend"
+
+  name_prefix = local.name_prefix
+  tags        = local.common_tags
+}
+
 module "ecs" {
   source = "../../modules/ecs"
 
@@ -47,7 +54,10 @@ module "ecs" {
   enable_autoscaling = var.enable_autoscaling
   min_capacity       = var.min_capacity
   max_capacity       = var.max_capacity
-  tags               = local.common_tags
+  environment_variables = {
+    ALLOWED_ORIGIN = module.frontend.frontend_url
+  }
+  tags = local.common_tags
 }
 
 module "rds" {

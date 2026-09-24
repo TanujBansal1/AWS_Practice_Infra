@@ -1,0 +1,77 @@
+name: Frontend Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Terraform Init
+        working-directory: environments/dev
+        run: >-
+          terraform init
+          -backend-config="bucket=tanay-tf-state-phase-one"
+          -backend-config="key=dev/terraform.tfstate"
+          -backend-config="region=us-east-1"
+          -backend-config="dynamodb_table=terraform-locks"
+          -backend-config="encrypt=true"
+
+      # Reads existing infra outputs rather than applying - the frontend
+      # bucket/distribution are provisioned by the infra pipeline; this job
+      # only ships static files into what's already there.
+      - name: Read infra outputs
+        id: infra
+        working-directory: environments/dev
+        run: |
+          echo "api_url=$(terraform output -raw alb_dns_name)" >> "$GITHUB_OUTPUT"
+          echo "bucket=$(terraform output -raw frontend_bucket_name)" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$(terraform output -raw frontend_cloudfront_distribution_id)" >> "$GITHUB_OUTPUT"
+
+      - name: Inject API URL into frontend config
+        working-directory: frontend
+        run: >-
+          sed -i "s#__API_BASE_URL__#http://${{ steps.infra.outputs.api_url }}#"
+          config.js
+
+      - name: Sync to S3
+        run: >-
+          aws s3 sync frontend/ "s3://${{ steps.infra.outputs.bucket }}"
+          --delete
+
+      - name: Invalidate CloudFront cache
+        run: >-
+          aws cloudfront create-invalidation
+          --distribution-id "${{ steps.infra.outputs.distribution_id }}"
+          --paths "/*"
