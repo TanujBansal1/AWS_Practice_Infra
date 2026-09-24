@@ -1,0 +1,93 @@
+name: App Build & Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+      - ".github/workflows/app.yml"
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: todo-api
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+
+jobs:
+  build-and-deploy:
+    name: build-and-deploy
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: app/Dockerfile
+          failure-threshold: error
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image tag
+        id: image
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Build image
+        working-directory: app
+        run: >-
+          docker build
+          -t "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.image.outputs.tag }}"
+          -t "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest"
+          .
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.image.outputs.tag }}"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Push image
+        run: |
+          docker push "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ steps.image.outputs.tag }}"
+          docker push "${{ steps.ecr-login.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: latest
+
+      - name: Terraform Init
+        working-directory: environments/dev
+        run: >-
+          terraform init
+          -backend-config="bucket=tanay-tf-state-phase-one"
+          -backend-config="key=dev/terraform.tfstate"
+          -backend-config="region=us-east-1"
+          -backend-config="dynamodb_table=terraform-locks"
+          -backend-config="encrypt=true"
+
+      # Applies only the new image_tag - the rest of the plan should be a
+      # no-op unless infra also drifted, since this reuses the same state.
+      - name: Terraform apply with new image tag
+        working-directory: environments/dev
+        run: >-
+          terraform apply -auto-approve
+          -var="image_tag=${{ steps.image.outputs.tag }}"
